@@ -1,0 +1,184 @@
+// Genealogy Business Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(CLIENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Client relationships
+  projects       Project[]
+  familyMembers  FamilyMember[]
+  uploadedDocuments Document[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime      @default(now())
+  endDate     DateTime?
+  clientId    String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relationships
+  client         User           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documents      Document[]
+  familyMembers  FamilyMember[]
+  aiAnalyses     AIAnalysis[]
+  relationships  Relationship[]
+
+  @@map("projects")
+}
+
+model FamilyMember {
+  id           String    @id @default(cuid())
+  firstName    String
+  lastName     String?
+  maidenName   String?
+  birthDate    DateTime?
+  deathDate    DateTime?
+  birthPlace   String?
+  deathPlace   String?
+  occupation   String?
+  notes        String?
+  gender       Gender?
+  projectId    String
+  addedById    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relationships
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  addedBy           User           @relation(fields: [addedById], references: [id])
+  
+  // Family relationships
+  parentRelations   Relationship[] @relation("ParentRelation")
+  childRelations    Relationship[] @relation("ChildRelation")
+  spouseRelations1  Relationship[] @relation("Spouse1Relation")
+  spouseRelations2  Relationship[] @relation("Spouse2Relation")
+
+  @@map("family_members")
+}
+
+model Relationship {
+  id            String           @id @default(cuid())
+  type          RelationshipType
+  projectId     String
+  person1Id     String
+  person2Id     String?
+  notes         String?
+  confidence    Float?           // AI confidence score (0-1)
+  verified      Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relationships
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    FamilyMember? @relation("ParentRelation", fields: [person1Id], references: [id])
+  child     FamilyMember? @relation("ChildRelation", fields: [person2Id], references: [id])
+  spouse1   FamilyMember? @relation("Spouse1Relation", fields: [person1Id], references: [id])
+  spouse2   FamilyMember? @relation("Spouse2Relation", fields: [person2Id], references: [id])
+
+  @@map("relationships")
+}
+
+model Document {
+  id          String       @id @default(cuid())
+  fileName    String
+  originalName String
+  filePath    String
+  fileType    String
+  fileSize    Int
+  description String?
+  uploadDate  DateTime     @default(now())
+  projectId   String
+  uploadedById String
+  status      DocumentStatus @default(PENDING)
+
+  // Relationships
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy  User         @relation(fields: [uploadedById], references: [id])
+  aiAnalyses  AIAnalysis[]
+
+  @@map("documents")
+}
+
+model AIAnalysis {
+  id          String        @id @default(cuid())
+  type        AIAnalysisType
+  input       String        // Original prompt or input data
+  output      String        // AI response/analysis
+  confidence  Float?        // Confidence score (0-1)
+  model       String        // AI model used
+  tokens      Int?          // Tokens consumed
+  projectId   String
+  documentId  String?
+  createdAt   DateTime      @default(now())
+
+  // Relationships
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@map("ai_analyses")
+}
+
+// Enums
+enum UserRole {
+  CLIENT
+  ADMIN
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum RelationshipType {
+  PARENT_CHILD
+  SPOUSE
+  SIBLING
+  GRANDPARENT_GRANDCHILD
+  AUNT_UNCLE_NIECE_NEPHEW
+  COUSIN
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  ANALYZED
+  FAILED
+}
+
+enum AIAnalysisType {
+  DOCUMENT_ANALYSIS
+  RELATIONSHIP_DETECTION
+  RESEARCH_SUGGESTION
+  NAME_STANDARDIZATION
+  TIMELINE_GENERATION
+}
